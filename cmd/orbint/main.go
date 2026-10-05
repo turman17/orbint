@@ -2,22 +2,26 @@ package main
 
 import (
 	"fmt"
+	"os"
+	"strings"
+
 	"github.com/turman17/orbint/internal/orbit"
 )
 
 func main() {
-	tleLines := []string{
-		"ISS (ZARYA)",
-		"1 25544U 98067A   26269.39984368  .00031849  00000+0  59036-3 0  9995",
-		"2 25544  51.6292 159.1757 0007020 184.2024 175.8906 15.48664613587440",
-	}
-
-	tle, err := orbit.ParseTle(tleLines)
+	data, err := os.ReadFile("internal/orbit/testdata/iss.tle")
 	if err != nil {
-		print("\n---------\n")
-		fmt.Printf("Error parsing TLE: %s\n", err.Error())
+		fmt.Printf("Error reading TLE file: %s\n", err.Error())
 		return
 	}
-	print("\n---------\n")
-	fmt.Printf("Parsed TLE: %+v\n", tle)
+
+	lines := strings.Split(strings.TrimSpace(string(data)), "\n")
+	
+	tle, err := orbit.ParseTle(lines)
+	if err != nil {
+		fmt.Printf("Error Parsing TLE: %s\n", err.Error())
+	}
+	fmt.Printf("%+v\n", tle)
 }
+
+
