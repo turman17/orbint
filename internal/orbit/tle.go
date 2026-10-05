@@ -68,7 +68,6 @@ func parseTleLines(line1, line2 string) (TLE, error) {
 		return TLE{}, ErrInvalidTLE
 	}
 
-
 	trim := func(s string) string {
 		start, end := 0, len(s)
 		for start < end && s[start] == ' ' {
