@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 	"github.com/turman17/orbint/internal/orbit"
 )
 
@@ -16,4 +17,12 @@ func main() {
 	tle, err := orbit.ParseTle(lines)
 	check(err)
 	fmt.Printf("%+v\n", tle)
+
+	p , err := orbit.NewPropagator(strings.Join(lines, "\n"))
+	check(err)
+
+	current_time := time.Now()
+	lat, lon, alt , err := p.Position(current_time)
+	check(err)
+	fmt.Printf("alt: %f, lon: %f ,alt: %f \n", lat , lon , alt)
 }
