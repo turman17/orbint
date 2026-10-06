@@ -22,7 +22,7 @@ func main() {
 	check(err)
 
 	current_time := time.Now()
-	lat, lat, alt , err := p.Position(current_time)
+	lat, lon, alt , err := p.Position(current_time)
 	check(err)
 	fmt.Printf("alt: %f, lat: %f ,alt: %f \n", lat , lon , alt)
 }
