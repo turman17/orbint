@@ -10,8 +10,6 @@ import (
 
 	"github.com/joho/godotenv"
 	"github.com/turman17/orbint/internal/store"
-	"github.com/turman17/orbint/internal/orbit"
-	"github.com/turman17/orbint/internal/celestrak"
 	"github.com/turman17/orbint/internal/util"
 )
 
@@ -89,49 +87,9 @@ func history(db *store.Store) http.HandlerFunc {
 	}
 }
 
-func position(client *celestrak.Client) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		id, err := strconv.Atoi(r.PathValue("id"))
-		if err != nil {
-			http.Error(w, "invalid satellite id", http.StatusBadRequest)
-			return
-		}
-
-		rawTLE, err := client.FetchTLE(id)
-		if err != nil {
-			http.Error(w, "failed to fetch satellite TLE", http.StatusBadGateway)
-			return
-		}
-
-		p, err := orbit.NewPropagator(rawTLE)
-		if err != nil {
-			http.Error(w, "failed to create propagator", http.StatusInternalServerError)
-			return
-		}
-
-		lat, lon, alt, err := p.Position(time.Now())
-		if err != nil {
-			http.Error(w, "failed to calculate position", http.StatusInternalServerError)
-			return
-		}
-
-		response := struct {
-			Lat float64 `json:"lat"`
-			Lon float64 `json:"lon"`
-			Alt float64 `json:"alt"`
-		}{lat, lon, alt}
-
-		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(response); err != nil {
-			log.Printf("failed to encode position: %v", err)
-		}
-	}
-}
-
 func main(){
 	err := godotenv.Load()
 	util.Check(err)
-	client := celestrak.NewClient()
 
 	connStr := os.Getenv("DATABASE_URL")
 	if connStr == "" {
@@ -143,7 +101,6 @@ func main(){
 	log.Println("API server starting on :8090")
 	http.HandleFunc("GET /api/satellites", satellites(db))
 	http.HandleFunc("GET /api/satellites/{id}/history", history(db))
-	http.HandleFunc("GET /api/satellites/{id}/position", position(client))
 
 	log.Fatal(http.ListenAndServe(":8090", logging(http.DefaultServeMux)))
 }
