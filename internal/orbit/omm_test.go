@@ -61,8 +61,9 @@ func TestParseOMMJSON_ISSFixture(t *testing.T) {
 	if !almostEqual(tle.MeanMotion, 15.48752789, 1e-8) {
 		t.Errorf("MeanMotion = %f, want 15.48752789", tle.MeanMotion)
 	}
-	if !almostEqual(tle.MeanMotionDot, 4.741e-5, 1e-9) {
-		t.Errorf("MeanMotionDot = %e, want 4.741e-5", tle.MeanMotionDot)
+	// Fixture MEAN_MOTION_DOT is 4.741e-5 in TLE convention (ndot/2).
+	if !almostEqual(tle.MeanMotionDot, 9.482e-5, 1e-9) {
+		t.Errorf("MeanMotionDot = %e, want 9.482e-5 (4.741e-5 × 2)", tle.MeanMotionDot)
 	}
 	if !almostEqual(tle.MeanMotionDotDot, 0, 1e-10) {
 		t.Errorf("MeanMotionDotDot = %f, want 0", tle.MeanMotionDotDot)
@@ -167,7 +168,7 @@ func TestParseOMMJSON_EmptyClassification(t *testing.T) {
 	}
 }
 
-func TestParseOMMJSON_NoMeanMotionMultiplier(t *testing.T) {
+func TestParseOMMJSON_AppliesDerivativeMultipliers(t *testing.T) {
 	data := []byte(`[{
 		"OBJECT_NAME":"TEST","OBJECT_ID":"2020-001A","EPOCH":"2026-01-15T10:30:00.000000",
 		"MEAN_MOTION":15.0,"ECCENTRICITY":0.001,"INCLINATION":51.0,
@@ -181,11 +182,13 @@ func TestParseOMMJSON_NoMeanMotionMultiplier(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if !almostEqual(tles[0].MeanMotionDot, 0.00005, 1e-10) {
-		t.Errorf("MeanMotionDot = %e, want 5e-5 (no ×2 multiplier for OMM)", tles[0].MeanMotionDot)
+	// OMM uses the same ndot/2, nddot/6 convention as TLE line 1, so the
+	// parser must apply ×2 and ×6 exactly like parseTleLines.
+	if !almostEqual(tles[0].MeanMotionDot, 0.0001, 1e-10) {
+		t.Errorf("MeanMotionDot = %e, want 1e-4 (5e-5 × 2)", tles[0].MeanMotionDot)
 	}
-	if !almostEqual(tles[0].MeanMotionDotDot, 0.000001, 1e-10) {
-		t.Errorf("MeanMotionDotDot = %e, want 1e-6 (no ×6 multiplier for OMM)", tles[0].MeanMotionDotDot)
+	if !almostEqual(tles[0].MeanMotionDotDot, 0.000006, 1e-10) {
+		t.Errorf("MeanMotionDotDot = %e, want 6e-6 (1e-6 × 6)", tles[0].MeanMotionDotDot)
 	}
 }
 

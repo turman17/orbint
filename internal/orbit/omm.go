@@ -58,8 +58,10 @@ func ParseOMMJSON(data []byte) ([]TLE, error) {
 			ArgumentOfPerigee:       rec.ArgOfPericenter,
 			MeanAnomaly:             rec.MeanAnomaly,
 			MeanMotion:              rec.MeanMotion,
-			MeanMotionDot:           rec.MeanMotionDot,
-			MeanMotionDotDot:        rec.MeanMotionDDot,
+			// OMM carries the TLE line-1 convention (ndot/2, nddot/6);
+			// store real derivatives, matching parseTleLines.
+			MeanMotionDot:           rec.MeanMotionDot * 2,
+			MeanMotionDotDot:        rec.MeanMotionDDot * 6,
 			BStar:                   rec.BStar,
 			EphemerisType:           rec.EphemerisType,
 			RevolutionNumber:        rec.RevAtEpoch,
