@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"log"
 	"net/http"
 	"os"
@@ -41,6 +42,28 @@ func satellites(db *store.Store) http.HandlerFunc {
 	}
 }
 
+// queryRange reads the optional RFC 3339 ?from= and ?to= parameters,
+// defaulting to the trailing 30 days. Shared by history and anomalies.
+func queryRange(r *http.Request) (from, to time.Time, err error) {
+	to = time.Now()
+	from = to.AddDate(0, 0, -30)
+
+	if value := r.URL.Query().Get("from"); value != "" {
+		if from, err = time.Parse(time.RFC3339, value); err != nil {
+			return from, to, errors.New("invalid 'from' date")
+		}
+	}
+	if value := r.URL.Query().Get("to"); value != "" {
+		if to, err = time.Parse(time.RFC3339, value); err != nil {
+			return from, to, errors.New("invalid 'to' date")
+		}
+	}
+	if from.After(to) {
+		return from, to, errors.New("'from' must be before 'to'")
+	}
+	return from, to, nil
+}
+
 func history(db *store.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id, err := strconv.Atoi(r.PathValue("id"))
@@ -49,29 +72,9 @@ func history(db *store.Store) http.HandlerFunc {
 			return
 		}
 
-		// Default: last 30 days
-		to := time.Now()
-		from := to.AddDate(0, 0, -30)
-
-		// Optional ?from=...&to=...
-		if value := r.URL.Query().Get("from"); value != "" {
-			from, err = time.Parse(time.RFC3339, value)
-			if err != nil {
-				http.Error(w, "invalid 'from' date", http.StatusBadRequest)
-				return
-			}
-		}
-
-		if value := r.URL.Query().Get("to"); value != "" {
-			to, err = time.Parse(time.RFC3339, value)
-			if err != nil {
-				http.Error(w, "invalid 'to' date", http.StatusBadRequest)
-				return
-			}
-		}
-
-		if from.After(to) {
-			http.Error(w, "'from' must be before 'to'", http.StatusBadRequest)
+		from, to, err := queryRange(r)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 
@@ -97,25 +100,9 @@ func anomalies(db *store.Store) http.HandlerFunc {
 			return
 		}
 
-		// Use the same default and optional date range as the history endpoint.
-		to := time.Now()
-		from := to.AddDate(0, 0, -30)
-		if value := r.URL.Query().Get("from"); value != "" {
-			from, err = time.Parse(time.RFC3339, value)
-			if err != nil {
-				http.Error(w, "invalid 'from' date", http.StatusBadRequest)
-				return
-			}
-		}
-		if value := r.URL.Query().Get("to"); value != "" {
-			to, err = time.Parse(time.RFC3339, value)
-			if err != nil {
-				http.Error(w, "invalid 'to' date", http.StatusBadRequest)
-				return
-			}
-		}
-		if from.After(to) {
-			http.Error(w, "'from' must be before 'to'", http.StatusBadRequest)
+		from, to, err := queryRange(r)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 
@@ -127,6 +114,9 @@ func anomalies(db *store.Store) http.HandlerFunc {
 
 		features := feature.Compute(history)
 		candidates := detect.Detect(id, features, detect.DefaultConfig())
+		if candidates == nil {
+			candidates = []detect.Candidate{} // encode as [], not null
+		}
 
 		w.Header().Set("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(candidates); err != nil {
