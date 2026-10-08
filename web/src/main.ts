@@ -13,7 +13,7 @@ import {
   Transforms,
   type Cartesian2,
 } from 'cesium'
-import { fetchHistory, fetchSatellites } from './api'
+import { fetchAnomalies, fetchHistory, fetchSatellites } from './api'
 import { track, type Tracked } from './orbit'
 import { SatelliteLayer } from './satellites'
 import { QUALITY_ORDER, applyQuality, createViewer, playIntro, type Quality } from './scene'
@@ -102,9 +102,18 @@ function main(): void {
       return
     }
     if (changed) {
+      ui.clearAnalysis()
+      // History draws the sparkline; the detector's candidates are listed
+      // and shaded onto it. Either may fail independently.
       void fetchHistory(t.id)
         .then((els) => ui.renderHistory(t.id, els))
         .catch(() => ui.renderHistory(t.id, []))
+      void fetchAnomalies(t.id)
+        .then((cands) => ui.renderAnomalies(t.id, cands))
+        .catch((err) => {
+          console.warn('[orbint] anomalies unavailable', err)
+          ui.renderAnomalies(t.id, null)
+        })
     }
     if (state.follow) {
       state.followInitialised = false

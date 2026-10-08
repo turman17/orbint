@@ -1,7 +1,7 @@
 // DOM side of the HUD. No framework: the markup lives in index.html and this
 // module fills it, wires events, and exposes a small imperative API to main.ts.
 
-import type { Elements } from './api'
+import type { Candidate, CandidateKind, Elements } from './api'
 import {
   fmtAge,
   fmtDeg,
@@ -32,6 +32,35 @@ export type StatusState = 'loading' | 'ok' | 'error'
 
 const REGIME_ORDER: Regime[] = ['LEO', 'MEO', 'GEO', 'HEO']
 
+const KIND_LABEL: Record<CandidateKind, string> = {
+  candidate_delta_v: 'Δv (mean motion)',
+  candidate_plane_change: 'Plane change',
+  candidate_drag_anomaly: 'Drag anomaly',
+  candidate_ecc_change: 'Eccentricity change',
+}
+
+const KIND_SHORT: Record<CandidateKind, string> = {
+  candidate_delta_v: 'Δv',
+  candidate_plane_change: 'plane',
+  candidate_drag_anomaly: 'drag',
+  candidate_ecc_change: 'ecc',
+}
+
+/** One-line evidence summary for a candidate: "step −0.0073 rev/d" or "z 42". */
+function evidence(c: Candidate): string {
+  const primary = c.Signals.find((s) => s.Rule === 'jump' && s.Kind === c.Kind)
+  if (primary) {
+    const unit = c.Kind === 'candidate_plane_change' ? '°' : ' rev/d'
+    return `step ${primary.Value >= 0 ? '+' : '−'}${fmtNum(Math.abs(primary.Value), c.Kind === 'candidate_plane_change' ? 3 : 4)}${unit}`
+  }
+  return Number.isFinite(c.ZScore) ? `z ${fmtNum(c.ZScore, 1)}` : 'z —'
+}
+
+interface SparkPoint {
+  t: number
+  v: number
+}
+
 function $<T extends HTMLElement = HTMLElement>(id: string): T {
   const el = document.getElementById(id)
   if (!el) throw new Error(`missing #${id}`)
@@ -56,6 +85,9 @@ export function createUI(handlers: UIHandlers) {
   let hoveredId: number | null = null
   const rows = new Map<number, HTMLLIElement>()
   let toastTimer = 0
+  // History and candidates arrive separately; the sparkline draws from both.
+  let sparkPoints: SparkPoint[] = []
+  let sparkCandidates: Candidate[] = []
 
   // ----- Legend -----
   const legend = $('legend')
@@ -202,14 +234,89 @@ export function createUI(handlers: UIHandlers) {
     text('d-speed', `${fmtNum(t.speedKmS, 3)} km/s`)
   }
 
-  // ----- History sparkline -----
+  // ----- History sparkline + candidate events -----
   function renderHistory(id: number, els: Elements[]): void {
     if (selectedId !== id) return
-    const pts = els
+    sparkPoints = els
       .map((e) => ({ t: new Date(e.Epoch).getTime(), v: e.MeanMotion }))
       .filter((p) => Number.isFinite(p.t) && Number.isFinite(p.v))
       .sort((a, b) => a.t - b.t)
+    drawSpark()
+  }
 
+  function renderAnomalies(id: number, cands: Candidate[] | null): void {
+    if (selectedId !== id) return
+    sparkCandidates = cands ?? []
+    drawEvents(cands)
+    drawSpark()
+  }
+
+  function clearAnalysis(): void {
+    sparkPoints = []
+    sparkCandidates = []
+    sparkEl.replaceChildren()
+    text('spark-readout', '—')
+    text('h-count', '—')
+    $('events').replaceChildren()
+    text('ev-count', '—')
+  }
+
+  function drawEvents(cands: Candidate[] | null): void {
+    const list = $('events')
+    list.replaceChildren()
+    if (cands === null) {
+      text('ev-count', 'unavailable')
+      const empty = document.createElement('li')
+      empty.className = 'events-empty'
+      empty.textContent = 'Detector unavailable'
+      list.appendChild(empty)
+      return
+    }
+    text('ev-count', `${cands.length} candidate${cands.length === 1 ? '' : 's'}`)
+    if (cands.length === 0) {
+      const empty = document.createElement('li')
+      empty.className = 'events-empty'
+      empty.textContent = sparkPoints.length < 3 ? 'Not enough history to run the detector' : 'Nothing flagged in the window'
+      list.appendChild(empty)
+      return
+    }
+    for (const c of cands) {
+      const li = document.createElement('li')
+      li.className = 'event'
+      const dot = document.createElement('span')
+      dot.className = 'event-dot'
+      const kind = document.createElement('span')
+      kind.className = 'event-kind'
+      kind.textContent = KIND_LABEL[c.Kind] ?? c.Kind
+      const z = document.createElement('span')
+      z.className = 'event-z mono'
+      z.textContent = evidence(c)
+      z.title = `Primary value ${fmtSci(c.Value, 3)}`
+      const sigs = document.createElement('span')
+      sigs.className = 'event-signals'
+      for (const s of c.Signals ?? []) {
+        const chip = document.createElement('span')
+        chip.className = 'event-sig'
+        chip.dataset.rule = s.Rule
+        chip.textContent = KIND_SHORT[s.Kind] ?? s.Kind
+        chip.title = `${KIND_LABEL[s.Kind] ?? s.Kind} · ${s.Rule === 'jump' ? 'single step' : `z ${fmtNum(s.ZScore, 1)}`} · ${fmtSci(s.Value, 3)}`
+        sigs.appendChild(chip)
+      }
+      const when = document.createElement('span')
+      when.className = 'event-when mono'
+      const a = new Date(c.EpochStart)
+      const b = new Date(c.EpochEnd)
+      when.textContent =
+        a.getTime() === b.getTime()
+          ? `${fmtUtc(a, false)} UTC`
+          : `${fmtUtc(a, false)} → ${fmtUtc(b, false)} UTC`
+      li.append(dot, kind, z, when, sigs)
+      list.appendChild(li)
+    }
+  }
+
+  function drawSpark(): void {
+    const pts = sparkPoints
     text('h-count', `${pts.length} element set${pts.length === 1 ? '' : 's'}`)
     sparkEl.replaceChildren()
     const readout = $('spark-readout')
@@ -244,33 +351,32 @@ export function createUI(handlers: UIHandlers) {
     const xy = pts.map((p) => [x(p.t), y(p.v)] as const)
 
     const svgNS = 'http://www.w3.org/2000/svg'
-    const svg = document.createElementNS(svgNS, 'svg')
-    svg.setAttribute('viewBox', `0 0 ${W} ${H}`)
-    svg.setAttribute('width', String(W))
-    svg.setAttribute('height', String(H))
+    const el = (tag: string, attrs: Record<string, string>) => {
+      const node = document.createElementNS(svgNS, tag)
+      for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, v)
+      return node
+    }
+    const svg = el('svg', { viewBox: `0 0 ${W} ${H}`, width: String(W), height: String(H) })
+
+    // Candidate runs as shaded bands behind the line, clamped to the window.
+    for (const c of sparkCandidates) {
+      const a = Math.max(new Date(c.EpochStart).getTime(), t0)
+      const b = Math.min(new Date(c.EpochEnd).getTime(), t1)
+      if (!Number.isFinite(a) || !Number.isFinite(b) || b < a) continue
+      const xa = x(a)
+      const xb = Math.max(x(b), xa + 2)
+      svg.appendChild(el('rect', { class: 'spark-band', x: xa.toFixed(1), y: '0', width: (xb - xa).toFixed(1), height: String(H) }))
+      svg.appendChild(el('line', { class: 'spark-band-edge', x1: xa.toFixed(1), x2: xa.toFixed(1), y1: '0', y2: String(H) }))
+    }
 
     const lineD = xy.map(([px, py], i) => `${i === 0 ? 'M' : 'L'}${px.toFixed(1)} ${py.toFixed(1)}`).join(' ')
-    const area = document.createElementNS(svgNS, 'path')
-    area.setAttribute('class', 'spark-area')
-    area.setAttribute('d', `${lineD} L${xy[xy.length - 1][0].toFixed(1)} ${H} L${xy[0][0].toFixed(1)} ${H} Z`)
-    const line = document.createElementNS(svgNS, 'path')
-    line.setAttribute('class', 'spark-line')
-    line.setAttribute('d', lineD)
-    const cursor = document.createElementNS(svgNS, 'line')
-    cursor.setAttribute('class', 'spark-cursor')
-    cursor.setAttribute('y1', '0')
-    cursor.setAttribute('y2', String(H))
+    const area = el('path', { class: 'spark-area', d: `${lineD} L${xy[xy.length - 1][0].toFixed(1)} ${H} L${xy[0][0].toFixed(1)} ${H} Z` })
+    const line = el('path', { class: 'spark-line', d: lineD })
+    const cursor = el('line', { class: 'spark-cursor', y1: '0', y2: String(H) })
     cursor.style.display = 'none'
-    const dot = document.createElementNS(svgNS, 'circle')
-    dot.setAttribute('class', 'spark-dot')
-    dot.setAttribute('r', '3.5')
     const last = xy[xy.length - 1]
-    dot.setAttribute('cx', last[0].toFixed(1))
-    dot.setAttribute('cy', last[1].toFixed(1))
-    const hit = document.createElementNS(svgNS, 'rect')
-    hit.setAttribute('class', 'spark-hit')
-    hit.setAttribute('width', String(W))
-    hit.setAttribute('height', String(H))
+    const dot = el('circle', { class: 'spark-dot', r: '3.5', cx: last[0].toFixed(1), cy: last[1].toFixed(1) })
+    const hit = el('rect', { class: 'spark-hit', width: String(W), height: String(H) })
     svg.append(area, line, cursor, dot, hit)
     sparkEl.appendChild(svg)
 
@@ -419,6 +525,8 @@ export function createUI(handlers: UIHandlers) {
     updateLive,
     updateAge,
     renderHistory,
+    renderAnomalies,
+    clearAnalysis,
     setClock,
     setStatus,
     setUtc,
