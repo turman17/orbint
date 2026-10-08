@@ -39,7 +39,25 @@ func (c *Client) FetchGroup(group string) ([]orbit.TLE, error) {
 	return c.fetch(url)
 }
 
-func (c *Client)FetchByCatalogNumber(id int) ([]orbit.TLE, error){
+func (c *Client) FetchByCatalogNumber(id int) ([]orbit.TLE, error) {
 	url := fmt.Sprintf("%s?CATNR=%d&FORMAT=JSON", c.baseURL, id)
 	return c.fetch(url)
+}
+
+func (c *Client) FetchTLE(id int) (string, error) {
+	url := fmt.Sprintf("%s?CATNR=%d&FORMAT=TLE", c.baseURL, id)
+	resp, err := c.client.Get(url)
+	if err != nil {
+		return "", fmt.Errorf("request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("celestrak returned status %d", resp.StatusCode)
+	}
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("failed to read response: %w", err)
+	}
+	return string(body), nil
 }

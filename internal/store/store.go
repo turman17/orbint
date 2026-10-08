@@ -128,3 +128,109 @@ func (s *Store) GetHistory(noradCatID int, from time.Time, to time.Time) ([]orbi
 	}
 	return tles, rows.Err()
 }
+
+func (s *Store) ListSatellites() ([]orbit.TLE, error) {
+	rows, err := s.db.Query(
+		`SELECT DISTINCT ON (norad_cat_id)
+    norad_cat_id, epoch, object_name, object_id, classification,
+    element_set_number, inclination, raan, eccentricity, arg_of_perigee,
+    mean_anomaly, mean_motion, mean_motion_dot, mean_motion_ddot,
+    bstar, ephemeris_type, rev_number 
+    FROM gp_elements 
+    ORDER BY norad_cat_id, epoch DESC`,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var tles []orbit.TLE
+	for rows.Next() {
+		var tle orbit.TLE
+		var class string
+		err := rows.Scan(
+			&tle.ID,
+			&tle.Epoch,
+			&tle.Name,
+			&tle.InternationalDesignator,
+			&class,
+			&tle.ElementSetNumber,
+			&tle.Inclination,
+			&tle.RAAN,
+			&tle.Eccentricity,
+			&tle.ArgumentOfPerigee,
+			&tle.MeanAnomaly,
+			&tle.MeanMotion,
+			&tle.MeanMotionDot,
+			&tle.MeanMotionDotDot,
+			&tle.BStar,
+			&tle.EphemerisType,
+			&tle.RevolutionNumber,
+		)
+
+		if err != nil {
+			return nil, err
+		}
+		tle.Class = class[0]
+		tles = append(tles, tle)
+	}
+	return tles, rows.Err()
+}
+
+func (s *Store) GetLatest(id int) (*orbit.TLE, error) {
+	var tle orbit.TLE
+	var class string
+
+	err := s.db.QueryRow(`
+		SELECT
+			norad_cat_id,
+			epoch,
+			object_name,
+			object_id,
+			classification,
+			element_set_number,
+			inclination,
+			raan,
+			eccentricity,
+			arg_of_perigee,
+			mean_anomaly,
+			mean_motion,
+			mean_motion_dot,
+			mean_motion_ddot,
+			bstar,
+			ephemeris_type,
+			rev_number
+		FROM gp_elements
+		WHERE norad_cat_id = $1
+		ORDER BY epoch DESC
+		LIMIT 1
+	`, id).Scan(
+		&tle.ID,
+		&tle.Epoch,
+		&tle.Name,
+		&tle.InternationalDesignator,
+		&class,
+		&tle.ElementSetNumber,
+		&tle.Inclination,
+		&tle.RAAN,
+		&tle.Eccentricity,
+		&tle.ArgumentOfPerigee,
+		&tle.MeanAnomaly,
+		&tle.MeanMotion,
+		&tle.MeanMotionDot,
+		&tle.MeanMotionDotDot,
+		&tle.BStar,
+		&tle.EphemerisType,
+		&tle.RevolutionNumber,
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	if len(class) > 0 {
+		tle.Class = class[0]
+	}
+
+	return &tle, nil
+}
