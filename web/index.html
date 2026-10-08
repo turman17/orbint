@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#05080f" />
+    <title>orbint</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <div id="globe" aria-label="3D globe"></div>
+
+    <div id="hud" class="hud">
+      <header class="hud-top">
+        <div class="panel brand">
+          <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true">
+            <circle cx="16" cy="16" r="6.5" fill="currentColor" opacity="0.9" />
+            <ellipse cx="16" cy="16" rx="14" ry="5.5" fill="none" stroke="currentColor" stroke-width="1.3" transform="rotate(-24 16 16)" />
+            <circle cx="28.4" cy="9.6" r="1.9" fill="currentColor" />
+          </svg>
+          <div class="brand-text">
+            <h1>ORBINT</h1>
+            <p>Orbital Intelligence Engine</p>
+          </div>
+        </div>
+        <div class="panel status" id="status" aria-live="polite">
+          <span class="status-dot" id="status-dot" data-state="loading"></span>
+          <span id="status-text">Connecting to API</span>
+          <span class="status-sep" aria-hidden="true"></span>
+          <span class="mono" id="status-count">—</span>
+          <span class="status-sep" aria-hidden="true"></span>
+          <span class="mono status-utc" id="status-utc">— UTC</span>
+        </div>
+      </header>
+
+      <aside class="panel catalog" id="catalog" aria-label="Object catalog">
+        <div class="catalog-head">
+          <label class="search">
+            <svg viewBox="0 0 16 16" aria-hidden="true">
+              <circle cx="7" cy="7" r="4.5" fill="none" stroke="currentColor" stroke-width="1.5" />
+              <path d="M10.5 10.5 14 14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
+            </svg>
+            <input id="search" type="search" placeholder="Search name or NORAD ID" autocomplete="off" spellcheck="false" />
+          </label>
+        </div>
+        <ul class="list" id="list" role="listbox" aria-label="Tracked objects"></ul>
+        <div class="legend" id="legend" aria-label="Orbit regimes"></div>
+      </aside>
+
+      <aside class="panel details is-hidden" id="details" aria-label="Selected object">
+        <div class="details-head">
+          <div>
+            <div class="details-kicker"><span class="chip" id="d-regime">LEO</span><span class="mono" id="d-norad">NORAD —</span></div>
+            <h2 id="d-name">—</h2>
+            <p class="details-sub mono" id="d-intl">—</p>
+          </div>
+          <button class="icon-btn" id="d-close" title="Close (Esc)" aria-label="Close">
+            <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" /></svg>
+          </button>
+        </div>
+
+        <section class="block">
+          <h3>Live state</h3>
+          <dl class="grid grid-2">
+            <div><dt>Latitude</dt><dd class="mono" id="d-lat">—</dd></div>
+            <div><dt>Longitude</dt><dd class="mono" id="d-lon">—</dd></div>
+            <div><dt>Altitude</dt><dd class="mono" id="d-alt">—</dd></div>
+            <div><dt>Speed</dt><dd class="mono" id="d-speed">—</dd></div>
+          </dl>
+        </section>
+
+        <section class="block">
+          <h3>Orbit</h3>
+          <dl class="grid grid-2">
+            <div><dt>Period</dt><dd class="mono" id="d-period">—</dd></div>
+            <div><dt>Inclination</dt><dd class="mono" id="d-inc">—</dd></div>
+            <div><dt>Apogee</dt><dd class="mono" id="d-apogee">—</dd></div>
+            <div><dt>Perigee</dt><dd class="mono" id="d-perigee">—</dd></div>
+            <div><dt>Eccentricity</dt><dd class="mono" id="d-ecc">—</dd></div>
+            <div><dt>Mean motion</dt><dd class="mono" id="d-mm">—</dd></div>
+            <div><dt>RAAN</dt><dd class="mono" id="d-raan">—</dd></div>
+            <div><dt>Arg. of perigee</dt><dd class="mono" id="d-argp">—</dd></div>
+            <div><dt>B*</dt><dd class="mono" id="d-bstar">—</dd></div>
+            <div><dt>Element age</dt><dd class="mono" id="d-age">—</dd></div>
+          </dl>
+        </section>
+
+        <section class="block">
+          <div class="block-head">
+            <h3>Mean motion · 30 d</h3>
+            <span class="muted mono" id="h-count">—</span>
+          </div>
+          <div class="spark" id="spark" aria-label="Mean motion history"></div>
+          <p class="spark-readout mono" id="spark-readout">—</p>
+        </section>
+
+        <div class="actions">
+          <button class="btn" id="d-track" aria-pressed="false">
+            <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="2" fill="currentColor"/><circle cx="8" cy="8" r="5.5" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M8 0.5v3M8 12.5v3M0.5 8h3M12.5 8h3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+            Follow
+          </button>
+          <button class="btn" id="d-ground" aria-pressed="true">
+            <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.5" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M1.5 8c3-3 10-3 13 0M1.5 8c3 3 10 3 13 0" fill="none" stroke="currentColor" stroke-width="1.1" stroke-dasharray="2 1.5"/></svg>
+            Ground track
+          </button>
+        </div>
+      </aside>
+
+      <div class="panel dock" id="dock" aria-label="Simulation clock">
+        <button class="icon-btn" id="play" title="Pause (Space)" aria-label="Pause" aria-pressed="true">
+          <svg class="ic-play" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 2.5v11l9-5.5z" fill="currentColor" /></svg>
+          <svg class="ic-pause" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 2.5h3v11H4zM9 2.5h3v11H9z" fill="currentColor" /></svg>
+        </button>
+        <div class="speeds" id="speeds" role="group" aria-label="Clock speed">
+          <button class="speed" data-mult="1" aria-pressed="true">1×</button>
+          <button class="speed" data-mult="10" aria-pressed="false">10×</button>
+          <button class="speed" data-mult="60" aria-pressed="false">60×</button>
+          <button class="speed" data-mult="600" aria-pressed="false">600×</button>
+        </div>
+        <div class="clock">
+          <span class="mono" id="sim-time"><span class="clock-date" id="sim-date">—</span> <span id="sim-clock">—</span></span>
+          <span class="chip chip-offset is-hidden mono" id="sim-offset"></span>
+        </div>
+        <button class="btn btn-ghost" id="now" title="Reset to real time">Now</button>
+      </div>
+
+      <div class="tooltip is-hidden" id="tooltip" role="status"></div>
+      <div class="credits" id="credits"></div>
+    </div>
+
+    <div class="loading" id="loading">
+      <div class="loading-ring" aria-hidden="true"></div>
+      <p class="loading-text" id="loading-text">Initialising orbital scene</p>
+    </div>
+    <div class="toast is-hidden" id="toast" role="alert"></div>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
