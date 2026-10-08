@@ -1,0 +1,24 @@
+services:
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: orbint
+      POSTGRES_PASSWORD: orbint
+      POSTGRES_DB: orbint
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./migrations:/docker-entrypoint-initdb.d
+    restart: unless-stopped
+
+  ingest:
+    build: .
+    depends_on:
+      - db
+    environment:
+      DATABASE_URL: postgres://orbint:orbint@db:5432/orbint?sslmode=disable
+    restart: unless-stopped
+
+volumes:
+  pgdata:
