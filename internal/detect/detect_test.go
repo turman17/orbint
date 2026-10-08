@@ -136,7 +136,7 @@ func TestDetectMultipleKinds(t *testing.T) {
 	for i := range fs {
 		fs[i].InclinationRate = 0.0001
 		fs[i].EccentricityRate = 0.00001
-		fs[i].BStarDelta = 0.00001
+		fs[i].BStarRate = 0.00001
 	}
 
 	fs[20].MeanMotionDrift = 5.0

@@ -78,7 +78,7 @@ func Detect(satelliteID int, features []feature.Feature, cfg Config) []Candidate
 			return f.InclinationRate
 		}},
 		{kind: KindDragAnomaly, value: func(f feature.Feature) float64 {
-			return f.BStarDelta
+			return f.BStarRate
 		}},
 		{kind: KindEccChange, value: func(f feature.Feature) float64 {
 			return f.EccentricityRate

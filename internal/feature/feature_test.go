@@ -10,13 +10,13 @@ import (
 
 func makeTLE(epoch time.Time, meanMotion, inclination, eccentricity, bstar float64) orbit.TLE {
 	return orbit.TLE{
-		ID:          25544,
-		Name:        "ISS",
-		Epoch:       epoch,
-		MeanMotion:  meanMotion,
-		Inclination: inclination,
+		ID:           25544,
+		Name:         "ISS",
+		Epoch:        epoch,
+		MeanMotion:   meanMotion,
+		Inclination:  inclination,
 		Eccentricity: eccentricity,
-		BStar:       bstar,
+		BStar:        bstar,
 	}
 }
 
@@ -68,8 +68,8 @@ func TestComputeBasicPair(t *testing.T) {
 	if math.Abs(f.EccentricityRate-0.00002) > 1e-9 {
 		t.Errorf("EccentricityRate = %e, want 0.00002", f.EccentricityRate)
 	}
-	if math.Abs(f.BStarDelta-0.000005) > 1e-9 {
-		t.Errorf("BStarDelta = %e, want 0.000005", f.BStarDelta)
+	if math.Abs(f.BStarRate-0.000005) > 1e-9 {
+		t.Errorf("BStarRate = %e, want 0.000005", f.BStarRate)
 	}
 }
 
@@ -180,16 +180,16 @@ func TestComputeSemiMajorAxis(t *testing.T) {
 	if len(features) != 1 {
 		t.Fatalf("expected 1 feature, got %d", len(features))
 	}
-	if features[0].SemiMajorDelta >= 0 {
-		t.Errorf("SemiMajorDelta should be negative when mean motion increases, got %f", features[0].SemiMajorDelta)
+	if features[0].SemiMajorRate >= 0 {
+		t.Errorf("SemiMajorRate should be negative when mean motion increases, got %f", features[0].SemiMajorRate)
 	}
 
 	const mu = 398600.4418
 	n1 := 15.500 * 2 * math.Pi / 86400
 	n2 := 15.510 * 2 * math.Pi / 86400
 	expectedDelta := math.Cbrt(mu/(n2*n2)) - math.Cbrt(mu/(n1*n1))
-	if math.Abs(features[0].SemiMajorDelta-expectedDelta) > 1e-6 {
-		t.Errorf("SemiMajorDelta = %f, expected %f", features[0].SemiMajorDelta, expectedDelta)
+	if math.Abs(features[0].SemiMajorRate-expectedDelta) > 1e-6 {
+		t.Errorf("SemiMajorRate = %f, expected %f", features[0].SemiMajorRate, expectedDelta)
 	}
 }
 

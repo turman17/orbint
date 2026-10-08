@@ -15,8 +15,8 @@ type Feature struct {
 	MeanMotionDrift  float64 // rev/day per day — primary maneuver signal
 	InclinationRate  float64 // deg/day
 	EccentricityRate float64 // 1/day
-	BStarDelta       float64 // 1/(Earth radii) per day
-	SemiMajorDelta   float64 // km per day — derived from mean motion
+	BStarRate        float64 // 1/(Earth radii) per day
+	SemiMajorRate    float64 // km per day — derived from mean motion
 
 	// Raw deltas (not per day — the absolute jump)
 	MeanMotionJump  float64 // rev/day
@@ -63,18 +63,17 @@ func Compute(history []orbit.TLE) []Feature {
 		semiMajorJump := semiMajorAxis(later.MeanMotion) - semiMajorAxis(earlier.MeanMotion)
 
 		features = append(features, Feature{
-			Epoch:             later.Epoch,
-			GapDays:           gapDays,
-			MeanMotionDrift:   meanMotionJump / gapDays,
-			InclinationRate:   inclinationJump / gapDays,
-			EccentricityRate:  (later.Eccentricity - earlier.Eccentricity) / gapDays,
-			BStarDelta:        (later.BStar - earlier.BStar) / gapDays,
-			SemiMajorDelta:    semiMajorJump / gapDays,
-			MeanMotionJump:    meanMotionJump,
-			InclinationJump:   inclinationJump,
+			Epoch:            later.Epoch,
+			GapDays:          gapDays,
+			MeanMotionDrift:  meanMotionJump / gapDays,
+			InclinationRate:  inclinationJump / gapDays,
+			EccentricityRate: (later.Eccentricity - earlier.Eccentricity) / gapDays,
+			BStarRate:        (later.BStar - earlier.BStar) / gapDays,
+			SemiMajorRate:    semiMajorJump / gapDays,
+			MeanMotionJump:   meanMotionJump,
+			InclinationJump:  inclinationJump,
 		})
 	}
 
 	return features
 }
-
