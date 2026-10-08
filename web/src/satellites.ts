@@ -44,8 +44,12 @@ export const REGIME_COLORS: Record<Regime, string> = {
 }
 
 const LABEL_FONT = '500 12px "JetBrains Mono", ui-monospace, Menlo, monospace'
-/** Above this many objects, names render only on hover and selection. */
-const LABEL_ALL_LIMIT = 120
+/**
+ * Above this many objects, names render only on hover and selection. Below
+ * it, the declutter pass decides which names fit, so a thousand objects
+ * still read as a sparse set of labels rather than a wall of text.
+ */
+const LABEL_ALL_LIMIT = 1500
 /** Sim-time staleness (ms) before the orbit ring / ground track are resampled. */
 const RING_REFRESH_MS = 120_000
 const TRACK_REFRESH_MS = 45_000
