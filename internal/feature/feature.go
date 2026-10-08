@@ -2,6 +2,7 @@ package feature
 
 import (
 	"math"
+	"sort"
 	"time"
 
 	"github.com/turman17/orbint/internal/orbit"
@@ -29,6 +30,11 @@ func Compute(history []orbit.TLE) []Feature {
 	}
 
 	const (
+		// Element sets closer than this are the same observation published
+		// twice (Space-Track keeps re-issues at the same epoch with different
+		// precision). Dividing their last-digit differences by a sub-second
+		// gap would produce absurd rates, so they are collapsed first.
+		minGapDays    = 0.5 / 24
 		maxGapDays    = 30.0
 		secondsPerDay = 86400.0
 		twoPi         = 2 * math.Pi
@@ -46,15 +52,30 @@ func Compute(history []orbit.TLE) []Feature {
 		return math.Cbrt(mu / (n * n))
 	}
 
-	features := make([]Feature, 0, len(history)-1)
-	for i := 1; i < len(history); i++ {
-		earlier, later := history[i-1], history[i]
-		if later.Epoch.Before(earlier.Epoch) {
-			earlier, later = later, earlier
+	// Work on a sorted copy so callers can pass history in any order, then
+	// collapse near-duplicate epochs keeping the later record.
+	ordered := append([]orbit.TLE(nil), history...)
+	sort.SliceStable(ordered, func(i, j int) bool {
+		return ordered[i].Epoch.Before(ordered[j].Epoch)
+	})
+	kept := ordered[:0]
+	for _, tle := range ordered {
+		if n := len(kept); n > 0 && tle.Epoch.Sub(kept[n-1].Epoch).Hours()/24 < minGapDays {
+			kept[n-1] = tle
+			continue
 		}
+		kept = append(kept, tle)
+	}
+	if len(kept) < 2 {
+		return nil
+	}
+
+	features := make([]Feature, 0, len(kept)-1)
+	for i := 1; i < len(kept); i++ {
+		earlier, later := kept[i-1], kept[i]
 
 		gapDays := later.Epoch.Sub(earlier.Epoch).Hours() / 24
-		if gapDays <= 0 || gapDays > maxGapDays {
+		if gapDays > maxGapDays {
 			continue
 		}
 

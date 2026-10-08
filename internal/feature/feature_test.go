@@ -224,3 +224,51 @@ func TestComputeManeuverSignature(t *testing.T) {
 		t.Errorf("peak drift = %e, expected a clear maneuver signal (>0.01)", maxDrift)
 	}
 }
+
+func TestComputeCollapsesDuplicateEpochs(t *testing.T) {
+	// Space-Track re-issues the same element set at the same epoch with a
+	// few more digits. Only the later copy must survive, and the rate must
+	// be taken against the real neighbour, never across the sub-second gap.
+	t0 := makeTLE(epoch0, 15.500, 51.60, 0.0007829, 0.0001)
+	dup := makeTLE(epoch0.Add(300*time.Millisecond), 15.500, 51.60, 0.00078294, 0.0001)
+	next := makeTLE(epoch0.Add(24*time.Hour), 15.502, 51.60, 0.0007900, 0.0001)
+
+	fs := Compute([]orbit.TLE{t0, dup, next})
+	if len(fs) != 1 {
+		t.Fatalf("expected 1 feature after collapsing the duplicate, got %d", len(fs))
+	}
+	// The kept copy is the later one, 300 ms after epoch0.
+	wantGap := 1.0 - 0.3/86400
+	if math.Abs(fs[0].GapDays-wantGap) > 1e-9 {
+		t.Errorf("GapDays = %f, want %f (duplicate must not form a pair)", fs[0].GapDays, wantGap)
+	}
+	wantEcc := (0.0007900 - 0.00078294) / wantGap // against the later copy
+	if math.Abs(fs[0].EccentricityRate-wantEcc) > 1e-12 {
+		t.Errorf("EccentricityRate = %g, want %g (rate taken from the kept duplicate)", fs[0].EccentricityRate, wantEcc)
+	}
+}
+
+func TestComputeAllDuplicatesYieldsNil(t *testing.T) {
+	t0 := makeTLE(epoch0, 15.5, 51.6, 0.0007, 0.0001)
+	t1 := makeTLE(epoch0.Add(time.Second), 15.5, 51.6, 0.0007, 0.0001)
+	if got := Compute([]orbit.TLE{t0, t1}); got != nil {
+		t.Fatalf("two copies of one epoch carry no rate information, got %d features", len(got))
+	}
+}
+
+func TestComputeSortsUnorderedInput(t *testing.T) {
+	a := makeTLE(epoch0, 15.500, 51.60, 0.0007, 0.0001)
+	b := makeTLE(epoch0.Add(24*time.Hour), 15.501, 51.60, 0.0007, 0.0001)
+	c := makeTLE(epoch0.Add(48*time.Hour), 15.502, 51.60, 0.0007, 0.0001)
+	input := []orbit.TLE{c, a, b}
+	fs := Compute(input)
+	if len(fs) != 2 {
+		t.Fatalf("expected 2 features, got %d", len(fs))
+	}
+	if !fs[0].Epoch.Equal(b.Epoch) || !fs[1].Epoch.Equal(c.Epoch) {
+		t.Errorf("features not in epoch order: %v, %v", fs[0].Epoch, fs[1].Epoch)
+	}
+	if !input[0].Epoch.Equal(c.Epoch) {
+		t.Error("Compute must not reorder the caller's slice")
+	}
+}
